@@ -1,0 +1,61 @@
+SUBROUTINE SOIL_PROP(NDIM,SAND,WG,W2,TS)
+!--------------------------------------------------------
+!
+! Initialisation of soil thermal and hydraulic properties
+! (part 2)
+!
+!--------------------------------------------------------
+ USE SOIL
+ USE CONST, ONLY : TAU
+ IMPLICIT NONE
+ INTEGER, INTENT (IN) :: NDIM
+ REAL, INTENT(IN), DIMENSION(NDIM) :: SAND, WG, W2, TS
+ REAL, DIMENSION(NDIM) :: ZETA, ZWMAX, ZC1MAX, ZSIGMA2, ZX, ZL0, ZLQUARTZ, ZLWATER
+ REAL, DIMENSION(NDIM) :: ZKE, ZLAMBDA, ZLAMBDA_DRY, ZLAMBDA_SAT, ZLSOIL, ZCSOIL, ZRHOD
+ REAL :: ZPI
+!
+ ZPI = ACOS(-1.0) 
+ ZLQUARTZ = 7.7 ! Quartz thermal conductivity
+ ZLWATER = 0.57 ! Water thermal conductivity
+!
+ ZETA = (-1.815E-2*TS + 6.41)*WWILT+(6.5E-3*TS - 1.4)
+ ZWMAX = ZETA*WWILT
+ ZC1MAX = (1.19*WWILT - 5.09)*TS*0.01 + (1.464*WWILT + 17.86)
+ ZSIGMA2 = -ZWMAX**2/(2.0*LOG(0.01/ZC1MAX))
+ WHERE (WG < WWILT) 
+   C1 = ZC1MAX*EXP(-(WG - ZWMAX)**2/(2.0*ZSIGMA2))/0.01
+ ELSEWHERE (WG >= WWILT)
+   C1 = C1SAT*(WSAT/WG)**(0.5*B + 1.0)
+ END WHERE
+ C2 = C2REF*(W2/(WSAT - W2 + WL))
+ ZX = W2/WSAT
+ WGEQ = WSAT*(ZX - A*(ZX**P*(1.0-ZX**(8.*P))))
+ WHERE (W2 < WWILT) 
+   CG = CGSAT*(WWILT/WSAT)**(-B/(2.*LOG(10.)))
+ ELSEWHERE
+   CG = CGSAT*ZX**(-B/(2.*LOG(10.)))
+ END WHERE
+!
+! Formulation proposed by Peters-Lidard et al. (1998) 
+! 
+ WHERE (SAND < 0.2) 
+   ZL0 = 3.0
+ ELSEWHERE
+   ZL0 = 2.0
+ END WHERE  
+ WHERE (W2/WSAT > 0.1)
+   ZKE = ALOG10(W2/WSAT) + 1.0
+ ELSEWHERE
+   ZKE = 0.0
+ END WHERE  
+ ZLSOIL = ZLQUARTZ**SAND*ZL0**(1.0 - SAND)
+ ZLAMBDA_SAT = ZLSOIL**(1.0 - WSAT)*ZLWATER**W2  
+ ZRHOD = (1.0 - WSAT)*2700.0
+ ZLAMBDA_DRY = (0.135*ZRHOD + 64.7)/(2700.0 - 0.947*ZRHOD)
+ ZLAMBDA = ZKE*(ZLAMBDA_SAT - ZLAMBDA_DRY) + ZLAMBDA_DRY
+ ZCSOIL = (1.0 - WSAT)*1.4E6 + W2*4.18E6
+! 
+ CG = 2.0*SQRT(ZPI/(ZLAMBDA*ZCSOIL*TAU))
+!
+ RETURN
+END SUBROUTINE SOIL_PROP
